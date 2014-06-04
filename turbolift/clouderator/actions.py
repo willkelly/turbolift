@@ -18,6 +18,9 @@ from turbolift.authentication.authentication import get_new_token
 
 from turbolift import ARGS
 
+import magic
+import gzip
+import bz2
 
 class CloudActions(object):
     def __init__(self, payload):
@@ -197,6 +200,21 @@ class CloudActions(object):
             lvl='debug'
         )
 
+    def _dispatch_open(self, fpath):
+        with open(fpath, "rb") as f:
+            buf = f.read(100)
+            with magic.Magic(flags=magic.MAGIC_MIME_TYPE) as m:
+                content_type = m.id_buffer(buf)
+                if content_type == "application/x-gzip":
+                    return gzip.GzipFile
+                elif content_type == "application/x-bzip2":
+                    return bz2.BZ2File
+                elif content_type.find("text") == 0:
+                    return open
+            report.reporter(
+                msg="Skipping file %s due to unsupported file type" % fpath)
+            return None
+
     def _putter(self, url, fpath, rpath, fheaders, skip=False):
         """Place  object into the container.
 
@@ -212,15 +230,53 @@ class CloudActions(object):
                 prt=False,
                 lvl='debug'
             )
-
             if basic.file_exists(fpath) is False:
                 return None
             else:
-                with open(fpath, 'rb') as f_open:
-                    resp = http.put_request(
-                        url=url, rpath=rpath, body=f_open, headers=fheaders
-                    )
-                    self.resp_exception(resp=resp)
+                fheaders['content-type'] = "application/x-bzip2"
+                opener = self._dispatch_open(fpath)
+                if opener is None:
+                    return None
+                with opener(fpath, 'rb') as f_open:
+                    buf = ""
+                    chunk_size = 2 ** 30 * 100
+                    line_number = 1
+                    last_line_number = 1
+                    while True:
+                        line = f_open.readline()
+                        buf += line
+                        line_number += 1
+
+                        if line == "":
+                            if line_number == 2:
+                                report.reporter(
+                                    msg="Skipping blank file: %s" % fpath)
+                            elif len(buf) != 0:
+                                resp = http.put_request(
+                                    url=url,
+                                    rpath="%s-%s" % (rpath, last_line_number),
+                                    body=bz2.compress(buf),
+                                    headers=fheaders
+                                )
+                                self.resp_exception(resp=resp)
+                            break
+
+                        if len(buf) + len(line) > chunk_size:
+                            if line_number == last_line_number + 1:
+                                report.reporter(
+                                    msg="Stopping due to %d size lines: %s" % (
+                                        chunk_size,
+                                        fpath))
+                                break
+                            resp = http.put_request(
+                                url=url,
+                                rpath="%s-%s" % (rpath, last_line_number),
+                                body=bz2.compress(buf),
+                                headers=fheaders
+                            )
+                            self.resp_exception(resp=resp)
+                            last_line_number = line_number
+                            buf = ""
 
     def _list_getter(self, url, filepath, fheaders, last_obj=None):
         """Get a list of all objects in a container.
