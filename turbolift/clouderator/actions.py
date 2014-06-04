@@ -241,7 +241,7 @@ class CloudActions(object):
                     return None
                 with opener(fpath, 'rb') as f_open:
                     buf = ""
-                    chunk_size = 2 ** 30 * 100
+                    chunk_size = 2 ** 20 * 100
                     line_number = 1
                     last_line_number = 1
                     while True:
