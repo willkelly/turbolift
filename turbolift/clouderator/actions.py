@@ -202,16 +202,16 @@ class CloudActions(object):
 
     def _dispatch_open(self, fpath):
         with open(fpath, "rb") as f:
-            buf = f.read(100)
+            buf = f.read(1024)
             with magic.Magic(flags=magic.MAGIC_MIME_TYPE) as m:
                 content_type = m.id_buffer(buf)
                 if content_type == "application/x-gzip":
                     with gzip.GzipFile(fpath, "rb") as f:
-                        content_type = m.id_buffer(f.read(100))
+                        content_type = m.id_buffer(f.read(1024))
                         if content_type.find("text") == 0:
                             return gzip.GzipFile
                 elif content_type == "application/x-bzip2":
-                    content_type = m.id_buffer(f.read(100))
+                    content_type = m.id_buffer(f.read(1024))
                     with bz2.BZ2File(fpath, "rb") as f:
                         if content_type.find("text") == 0:
                             return bz2.BZ2File
