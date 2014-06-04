@@ -213,7 +213,8 @@ class CloudActions(object):
                     return open
             report.reporter(
                 msg="Skipping file %s due to unsupported file type %s" % \
-                (fpath, content_type))
+                (fpath, content_type),
+                lvl="debug")
             return None
 
     def _putter(self, url, fpath, rpath, fheaders, skip=False):
@@ -249,10 +250,7 @@ class CloudActions(object):
                         line_number += 1
 
                         if line == "":
-                            if line_number == 2:
-                                report.reporter(
-                                    msg="Skipping blank file: %s" % fpath)
-                            elif len(buf) != 0:
+                            if len(buf) != 0:
                                 resp = http.put_request(
                                     url=url,
                                     rpath="%s-%s.bz2" % (rpath, last_line_number),
@@ -265,9 +263,10 @@ class CloudActions(object):
                         if len(buf) + len(line) > chunk_size:
                             if line_number == last_line_number + 1:
                                 report.reporter(
-                                    msg="Stopping due to %d size lines: %s" % (
+                                    msg="Skipping upload due to %d size lines: %s" % (
                                         chunk_size,
-                                        fpath))
+                                        fpath),
+                                    lvl="debug")
                                 break
                             resp = http.put_request(
                                 url=url,
