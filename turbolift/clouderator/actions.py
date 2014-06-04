@@ -206,15 +206,23 @@ class CloudActions(object):
             with magic.Magic(flags=magic.MAGIC_MIME_TYPE) as m:
                 content_type = m.id_buffer(buf)
                 if content_type == "application/x-gzip":
-                    return gzip.GzipFile
+                    with gzip.GzipFile(fpath, "rb") as f:
+                        content_type = m.id_buffer(f.read(100))
+                        if content_type.find("text") == 0:
+                            return gzip.GzipFile
                 elif content_type == "application/x-bzip2":
-                    return bz2.BZ2File
+                    content_type = m.id_buffer(f.read(100))
+                    with bz2.BZ2File(fpath, "rb") as f:
+                        if content_type.find("text") == 0:
+                            return bz2.BZ2File
                 elif content_type.find("text") == 0:
                     return open
             report.reporter(
                 msg="Skipping file %s due to unsupported file type %s" % \
                 (fpath, content_type),
-                lvl="debug")
+                lvl="info",
+                prt=False,
+                log=True)
             return None
 
     def _putter(self, url, fpath, rpath, fheaders, skip=False):
@@ -266,7 +274,9 @@ class CloudActions(object):
                                     msg="Skipping upload due to %d size lines: %s" % (
                                         chunk_size,
                                         fpath),
-                                    lvl="debug")
+                                    lvl="info",
+                                    prt=False,
+                                    log=True)
                                 break
                             resp = http.put_request(
                                 url=url,
