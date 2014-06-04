@@ -212,7 +212,8 @@ class CloudActions(object):
                 elif content_type.find("text") == 0:
                     return open
             report.reporter(
-                msg="Skipping file %s due to unsupported file type" % fpath)
+                msg="Skipping file %s due to unsupported file type %s" % \
+                (fpath, content_type))
             return None
 
     def _putter(self, url, fpath, rpath, fheaders, skip=False):
@@ -254,7 +255,7 @@ class CloudActions(object):
                             elif len(buf) != 0:
                                 resp = http.put_request(
                                     url=url,
-                                    rpath="%s-%s" % (rpath, last_line_number),
+                                    rpath="%s-%s.bz2" % (rpath, last_line_number),
                                     body=bz2.compress(buf),
                                     headers=fheaders
                                 )
@@ -270,7 +271,7 @@ class CloudActions(object):
                                 break
                             resp = http.put_request(
                                 url=url,
-                                rpath="%s-%s" % (rpath, last_line_number),
+                                rpath="%s-%s.bz2" % (rpath, last_line_number),
                                 body=bz2.compress(buf),
                                 headers=fheaders
                             )
