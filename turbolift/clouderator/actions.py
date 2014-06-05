@@ -248,27 +248,31 @@ class CloudActions(object):
                 if opener is None:
                     return None
                 with opener(fpath, 'rb') as f_open:
+                    compressor = bz2.BZ2Compressor()
                     buf = ""
+                    buf_len = 0
                     chunk_size = 2 ** 20 * 100
                     line_number = 1
                     last_line_number = 1
                     while True:
                         line = f_open.readline()
-                        buf += line
                         line_number += 1
 
                         if line == "":
-                            if len(buf) != 0:
+                            if buf_len != 0:
+                                data = compressor.flush()
+                                if data:
+                                    buf += data
                                 resp = http.put_request(
                                     url=url,
                                     rpath="%s-%s.bz2" % (rpath, last_line_number),
-                                    body=bz2.compress(buf),
+                                    body=buf,
                                     headers=fheaders
                                 )
                                 self.resp_exception(resp=resp)
                             break
 
-                        if len(buf) + len(line) > chunk_size:
+                        if buf_len + len(line) > chunk_size:
                             if line_number == last_line_number + 1:
                                 report.reporter(
                                     msg="Skipping upload due to %d size lines: %s" % (
@@ -278,15 +282,25 @@ class CloudActions(object):
                                     prt=False,
                                     log=True)
                                 break
+                            data = compressor.flush()
+                            if data is not None:
+                                buf += data
                             resp = http.put_request(
                                 url=url,
                                 rpath="%s-%s.bz2" % (rpath, last_line_number),
-                                body=bz2.compress(buf),
+                                body=buf,
                                 headers=fheaders
                             )
                             self.resp_exception(resp=resp)
-                            last_line_number = line_number
+                            last_line_number = line_number - 1
                             buf = ""
+                            buf_len = 0
+                            compressor = bz2.BZ2Compressor()
+                        buf_len += len(line)
+                        data = compressor.compress(line)
+                        if data is not None:
+                            buf += data
+
 
     def _list_getter(self, url, filepath, fheaders, last_obj=None):
         """Get a list of all objects in a container.
