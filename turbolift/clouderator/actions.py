@@ -254,6 +254,19 @@ class CloudActions(object):
                     chunk_size = 2 ** 20 * 100
                     line_number = 1
                     last_line_number = 1
+                    resp = self._header_getter(
+                        url=url,
+                        rpath="%s-%s.bz2" % (rpath, last_line_number),
+                        fheaders=fheaders)
+                    skip = resp.status_code >= 200 \
+                           and resp.status_code < 300
+                    if skip:
+                        report.reporter(
+                            msg="Skipping upload of part %s in %s" % \
+                            (last_line_number, rpath),
+                            lvl="info",
+                            prt=False,
+                            log=True)
                     while True:
                         line = f_open.readline()
                         line_number += 1
@@ -263,13 +276,14 @@ class CloudActions(object):
                                 data = compressor.flush()
                                 if data:
                                     buf += data
-                                resp = http.put_request(
-                                    url=url,
-                                    rpath="%s-%s.bz2" % (rpath, last_line_number),
-                                    body=buf,
-                                    headers=fheaders
-                                )
-                                self.resp_exception(resp=resp)
+                                if not skip:
+                                    resp = http.put_request(
+                                        url=url,
+                                        rpath="%s-%s.bz2" % (rpath, last_line_number),
+                                        body=buf,
+                                        headers=fheaders
+                                    )
+                                    self.resp_exception(resp=resp)
                             break
 
                         if buf_len + len(line) > chunk_size:
@@ -285,19 +299,33 @@ class CloudActions(object):
                             data = compressor.flush()
                             if data is not None:
                                 buf += data
-                            resp = http.put_request(
-                                url=url,
-                                rpath="%s-%s.bz2" % (rpath, last_line_number),
-                                body=buf,
-                                headers=fheaders
-                            )
-                            self.resp_exception(resp=resp)
+                            if not skip:
+                                resp = http.put_request(
+                                    url=url,
+                                    rpath="%s-%s.bz2" % (rpath, last_line_number),
+                                    body=buf,
+                                    headers=fheaders
+                                )
+                                self.resp_exception(resp=resp)
                             last_line_number = line_number - 1
                             buf = ""
                             buf_len = 0
+                            resp = self._header_getter(
+                                url=url,
+                                rpath="%s-%s.bz2" % (rpath, last_line_number),
+                                fheaders=fheaders)
+                            skip = resp.status_code >= 200 \
+                                   and resp.status_code < 300
+                            if skip:
+                                report.reporter(
+                                    msg="Skipping upload of part %s in %s" % \
+                                    (last_line_number, rpath),
+                                    lvl="info",
+                                    prt=False,
+                                    log=True)
                             compressor = bz2.BZ2Compressor()
                         buf_len += len(line)
-                        data = compressor.compress(line)
+                        data = compressor.compress(line if not skip else "")
                         if data is not None:
                             buf += data
 
